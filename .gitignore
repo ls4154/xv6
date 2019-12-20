@@ -15,6 +15,7 @@ kernelmemfs
 mkfs
 .gdbinit
 
+tags
 .vimrc
 compile_commands.json
 .clangd/
