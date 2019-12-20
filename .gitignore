@@ -14,3 +14,7 @@ kernel
 kernelmemfs
 mkfs
 .gdbinit
+
+.vimrc
+compile_commands.json
+.clangd/
