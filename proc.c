@@ -112,6 +112,8 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  p->nice = 0;
+
   return p;
 }
 
@@ -531,4 +533,56 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+getnice(int pid)
+{
+  struct proc *p;
+  int ret = -1;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      ret = p->nice;
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return ret;
+}
+
+int
+setnice(int pid, int value)
+{
+  struct proc *p;
+  int ret = -1;
+
+  if (value < -20 || value > 19)
+    return ret;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->nice = value;
+      ret = 0;
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return ret;
+}
+
+void
+ps(int pid)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid != pid && pid != 0)
+      continue;
+    if(p->state >= 2 && p->state <= 5)
+      cprintf("%d: %d %d %s\n", p->pid, p->nice, p->state, p->name);
+  }
+  release(&ptable.lock);
 }
