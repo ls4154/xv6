@@ -14,6 +14,7 @@ int
 do_mmap(void *addr, int length, int prot, int flags, int fd, int offset)
 {
   int i;
+  int npages;
   struct file *f;
   struct inode *ip;
   struct mmap_info *mmi;
@@ -36,8 +37,8 @@ do_mmap(void *addr, int length, int prot, int flags, int fd, int offset)
 
   // get free mmap_info struct
   for(i = 0; i < NMMAP; i++){
-    if(cutproc->mmap[i].addr == 0){
-      mmi = &curproc[mmap[i];
+    if(curproc->mmap[i].addr == 0){
+      mmi = &curproc->mmap[i];
       goto found;
     }
   }
@@ -45,7 +46,9 @@ do_mmap(void *addr, int length, int prot, int flags, int fd, int offset)
 
 found:
   if(addr == 0)
-    addr = MMAPBASE + curproc->mmap_pgcnt * PGSIZE;
+    addr = (void*)(MMAPBASE + curproc->mmap_pgcnt * PGSIZE);
+
+  npages = PGROUNDUP(length) / PGSIZE;
 
   mmi->addr = addr;
   mmi->sz = length;
@@ -64,7 +67,6 @@ found:
   }
 
   if(flags & MAP_POPULATE){
-    int npages = PGROUNDUP(length) / PGSIZE;
     char *mem;
     int perm = PTE_U;
     if(prot & PROT_WRITE)
@@ -79,20 +81,22 @@ found:
         // TODO: free and unmap
         goto fail;
       }
-      mappages(curproc->pgdir, addr + i * PGSIZE, V2P(mem), perm);
+      mappages(curproc->pgdir, (char*)addr + i * PGSIZE, PGSIZE, V2P(mem), perm);
       // load file data to memory
-      if(!(flags & MAP_ANONYMOUS) && ){
+      if(!(flags & MAP_ANONYMOUS)){
         // readi handle out of file size so no check here
         readi(ip, mem, offset + i * PGSIZE, PGSIZE);
       }
     }
   }
+
+  curproc->mmap_pgcnt += npages;
   return (int)addr;
 fail:
   mmi->addr = 0;
   mmi->sz = 0;
   mmi->ip = 0;
-  mmi->offset = 0;
+  mmi->off = 0;
   return -1;
 }
 
@@ -113,7 +117,7 @@ do_munmap(void *addr)
   }
   return -1;
 found:
-  ip = f->ip;
+  ip = mmi->ip;
   npages = PGROUNDUP(mmi->sz) / PGSIZE;
 
   // file writeback
@@ -128,9 +132,9 @@ found:
   }
 
   mmi->addr = 0;
-  mmi->szz = 0;
+  mmi->sz = 0;
   mmi->ip = 0;
-  mmi->offset = 0;
+  mmi->off = 0;
   return 0;
 }
 
