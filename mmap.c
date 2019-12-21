@@ -16,7 +16,7 @@ do_mmap(void *addr, int length, int prot, int flags, int fd, int offset)
   int i;
   int npages;
   struct file *f;
-  struct inode *ip;
+  struct inode *ip = 0;
   struct mmap_info *mmi;
   struct proc* curproc = myproc();
 
@@ -84,8 +84,12 @@ found:
       mappages(curproc->pgdir, (char*)addr + i * PGSIZE, PGSIZE, V2P(mem), perm);
       // load file data to memory
       if(!(flags & MAP_ANONYMOUS)){
+        begin_op();
+        ilock(ip);
         // readi handle out of file size so no check here
         readi(ip, mem, offset + i * PGSIZE, PGSIZE);
+        iunlock(ip);
+        end_op();
       }
     }
   }
@@ -121,14 +125,21 @@ found:
   npages = PGROUNDUP(mmi->sz) / PGSIZE;
 
   // file writeback
-  for(i = 0; i < npages; i++){
-    char *mem = mmi->addr + i * PGSIZE;
-    if (i == npages - 1)
-      writei(ip, mem, mmi->off + i * PGSIZE, mmi->sz % PGSIZE);
-    else
-      writei(ip, mem, mmi->off + i * PGSIZE, PGSIZE);
-    // TODO: implement unmappage
-    unmappage(curproc->pgdir, mem);
+  if(ip){
+    for(i = 0; i < npages; i++){
+      char *mem = mmi->addr + i * PGSIZE;
+      char *kmem = uva2ka(curproc->pgdir, mem);
+      begin_op();
+      ilock(ip);
+      if (i == npages - 1)
+        writei(ip, mem, mmi->off + i * PGSIZE, mmi->sz % PGSIZE);
+      else
+        writei(ip, mem, mmi->off + i * PGSIZE, PGSIZE);
+      iunlock(ip);
+      end_op();
+      kfree(kmem);
+      unmappage(curproc->pgdir, mem);
+    }
   }
 
   mmi->addr = 0;

@@ -79,6 +79,19 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
   return 0;
 }
 
+int
+unmappage(pde_t *pgdir, void *va)
+{
+  char *a;
+  pte_t *pte;
+
+  a = (char*)PGROUNDDOWN((uint)va);
+  if((pte = walkpgdir(pgdir, a, 0)) == 0)
+    return -1;
+  *pte = 0;
+  return 0;
+}
+
 // There is one page table per process, plus one that's used when
 // a CPU is not running any process (kpgdir). The kernel uses the
 // current process's page table during system calls and interrupts;
