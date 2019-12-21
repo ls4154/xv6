@@ -34,6 +34,13 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct mmap_info {
+  void *addr;                  // Start address
+  int sz;                      // Size of mapped region (bytes)
+  int off;                     // Start offset
+  struct inode *ip;            // Inode if file mapped
+};
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -50,6 +57,8 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int nice;
+  struct mmap_info mmap[NMMAP];
+  int mmap_pgcnt;
 };
 
 // Process memory is laid out contiguously, low addresses first:

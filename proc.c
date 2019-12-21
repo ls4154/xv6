@@ -114,6 +114,9 @@ found:
 
   p->nice = 0;
 
+  p->mmap_cnt = 0;
+  p->mmap_pgcnt = 0;
+
   return p;
 }
 
