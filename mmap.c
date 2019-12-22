@@ -9,6 +9,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "mman.h"
+#include "x86.h"
 
 int
 do_mmap(void *addr, int length, int prot, int flags, int fd, int offset)
@@ -18,7 +19,7 @@ do_mmap(void *addr, int length, int prot, int flags, int fd, int offset)
   struct file *f;
   struct inode *ip = 0;
   struct mmap_info *mmi;
-  struct proc* curproc = myproc();
+  struct proc *curproc = myproc();
 
   // non page-aligned value not supported
   if((int)addr % PGSIZE || (int)length % PGSIZE)
@@ -54,6 +55,7 @@ found:
   mmi->sz = length;
   mmi->ip = 0;
   mmi->off = offset;
+  mmi->prot = prot;
 
   if(!(flags & MAP_ANONYMOUS)){
     if(fd < 0 || fd >= NOFILE ||(f=myproc()->ofile[fd]) == 0)
@@ -75,12 +77,12 @@ found:
     for(i = 0; i < npages; i++){
       // allocate and map single page
       mem = kalloc();
-      memset(mem, 0, PGSIZE);
       if(mem == 0){
         cprintf("mmap out of memory\n");
         // TODO: free and unmap
         goto fail;
       }
+      memset(mem, 0, PGSIZE);
       mappages(curproc->pgdir, (char*)addr + i * PGSIZE, PGSIZE, V2P(mem), perm);
       // load file data to memory
       if(!(flags & MAP_ANONYMOUS)){
@@ -101,6 +103,7 @@ fail:
   mmi->sz = 0;
   mmi->ip = 0;
   mmi->off = 0;
+  mmi->prot = 0;
   return -1;
 }
 
@@ -110,7 +113,7 @@ do_munmap(void *addr)
   int i;
   struct inode *ip;
   struct mmap_info *mmi;
-  struct proc* curproc = myproc();
+  struct proc *curproc = myproc();
   int npages;
 
   for(i = 0; i < NMMAP; i++){
@@ -124,11 +127,12 @@ found:
   ip = mmi->ip;
   npages = PGROUNDUP(mmi->sz) / PGSIZE;
 
-  // file writeback
-  if(ip){
-    for(i = 0; i < npages; i++){
-      char *mem = mmi->addr + i * PGSIZE;
-      char *kmem = uva2ka(curproc->pgdir, mem);
+  for(i = 0; i < npages; i++){
+    char *mem = mmi->addr + i * PGSIZE;
+    char *kmem = uva2ka(curproc->pgdir, mem);
+    // TODO: check page allocated
+    // file writeback
+    if(ip){
       begin_op();
       ilock(ip);
       if (i == npages - 1)
@@ -137,20 +141,55 @@ found:
         writei(ip, mem, mmi->off + i * PGSIZE, PGSIZE);
       iunlock(ip);
       end_op();
-      kfree(kmem);
-      unmappage(curproc->pgdir, mem);
     }
+    kfree(kmem);
+    unmappage(curproc->pgdir, mem);
   }
 
   mmi->addr = 0;
   mmi->sz = 0;
   mmi->ip = 0;
   mmi->off = 0;
+  mmi->prot = 0;
   return 0;
 }
 
 int
 check_pgflt_mmap(void *addr)
 {
+  int i;
+  struct mmap_info *mmi;
+  struct proc *curproc = myproc();
+  char *mem;
+  int perm = PTE_U;
+  for(i = 0; i < NMMAP; i++){
+    mmi = &curproc->mmap[i];
+    if(mmi->addr <= addr && mmi->addr + mmi->sz > addr)
+      goto found;
+  }
+  return -1;
+found:
+  if(curproc->tf->err & 2){
+    if(!(mmi->prot & PROT_WRITE))
+      return -1;
+    perm |= PTE_W;
+  }
+
+  mem = kalloc();
+  if(mem == 0){
+    cprintf("mmap out of memory\n");
+    return -1;
+  }
+  memset(mem, 0, PGSIZE);
+  mappages(curproc->pgdir, (char*)PGROUNDDOWN((uint)addr), PGSIZE, V2P(mem), perm);
+  if(mmi->ip){
+    begin_op();
+    ilock(mmi->ip);
+    // readi handle out of file size so no check here
+    readi(mmi->ip, mem, mmi->off + PGROUNDDOWN((uint)addr) - (uint)mmi->addr, PGSIZE);
+    iunlock(mmi->ip);
+    end_op();
+  }
+
   return 0;
 }

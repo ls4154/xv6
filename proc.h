@@ -39,6 +39,7 @@ struct mmap_info {
   int sz;                      // Size of mapped region (bytes)
   int off;                     // Start offset
   struct inode *ip;            // Inode if file mapped
+  int prot;                    // mmap prot
 };
 
 // Per-process state
