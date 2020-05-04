@@ -79,6 +79,30 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
   return 0;
 }
 
+static int
+check_freepgtab(pde_t *pgdir, void *va)
+{
+  int i;
+  pde_t *pde;
+  pte_t *pgtab = 0;
+
+  pde = &pgdir[PDX(va)];
+  if(*pde & PTE_P)
+    pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+  else
+    return -1;
+
+  for(i = 0; i < NPTENTRIES; i++)
+    if(pgtab[i] & PTE_P)
+      return 0;
+
+  kfree(pgtab);
+
+  *pde = 0;
+
+  return 0;
+}
+
 int
 unmappage(pde_t *pgdir, void *va)
 {
@@ -89,6 +113,9 @@ unmappage(pde_t *pgdir, void *va)
   if((pte = walkpgdir(pgdir, a, 0)) == 0)
     return -1;
   *pte = 0;
+
+  check_freepgtab(pgdir, a);
+
   return 0;
 }
 
