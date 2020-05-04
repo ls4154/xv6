@@ -96,7 +96,7 @@ check_freepgtab(pde_t *pgdir, void *va)
     if(pgtab[i] & PTE_P)
       return 0;
 
-  kfree(pgtab);
+  kfree((void*)pgtab);
 
   *pde = 0;
 

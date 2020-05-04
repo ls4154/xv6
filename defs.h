@@ -175,6 +175,7 @@ void            uartputc(int);
 
 // vm.c
 void            seginit(void);
+pte_t*          walkpgdir(pde_t*, const void*, int);
 void            kvmalloc(void);
 int             mappages(pde_t*, void*, uint, uint, int);
 int             unmappage(pde_t*, void*);
