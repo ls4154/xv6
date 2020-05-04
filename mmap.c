@@ -129,8 +129,11 @@ found:
 
   for(i = 0; i < npages; i++){
     char *mem = mmi->addr + i * PGSIZE;
-    char *kmem = uva2ka(curproc->pgdir, mem);
-    // TODO: check page allocated
+    char *kmem;
+    // check page allocated
+    if(walkpgdir(curproc->pgdir, mem, 0) == 0)
+      continue;
+    kmem = uva2ka(curproc->pgdir, mem);
     // file writeback
     if(ip){
       begin_op();
