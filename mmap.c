@@ -131,7 +131,8 @@ found:
     char *mem = mmi->addr + i * PGSIZE;
     char *kmem;
     // check page allocated
-    if(walkpgdir(curproc->pgdir, mem, 0) == 0)
+    pte_t *pte = walkpgdir(curproc->pgdir, mem, 0);
+    if(pte == 0 || !(*pte & PTE_P))
       continue;
     kmem = uva2ka(curproc->pgdir, mem);
     // file writeback
